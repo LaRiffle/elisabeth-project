@@ -9,6 +9,7 @@ Created on Sat May 13 14:20:58 2017
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import numpy.polynomial.polynomial as poly
 import time
 import math
 
@@ -63,23 +64,51 @@ show_image(img, 'Rotated image '+str(theta)+'°')
 img = crop_image(img, how=300)
 show_image(img, 'Croped image')
 
-# preprare gray for canny : good
-print(img.shape)
+
+
+# Last things to do
 h, w, _ = img.shape
-gray = []
-for i in range(h):
-    gray.append([np.mean(img[:, i]) for i in range(w)])
-    
-gray = np.uint8(np.array(gray))
-clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-gray = clahe.apply(gray)
 
-show_image(gray, 'Gray image - clahe')
+total_bright = [np.mean(img[:, i]) for i in range(w)]
+x = list(range(len(total_bright)))
+coefs = poly.polyfit(x, total_bright, 5)
+y_base = poly.polyval(x, coefs)
+plt.figure(1)
+plt.plot(x, total_bright, 'r--')
+plt.plot(x, y_base)
+plt.show()
 
-threshold = get_canny_configuration(gray)
-#threshold = {'down':30, 'up': 50}
-_, nb_lines = canny_direction(img, gray, threshold['down'], threshold['up'])
+y = total_bright - y_base
+y = [i+128 for i in y]
+plt.figure(2)
+plt.plot(range(len(total_bright)), y, 'r--')
+plt.show()
 
-print('There are', nb_lines, 'lines ->', int(nb_lines/2), 'sillons')
+plt.plot(range(w), [np.mean(img[:, i]) for i in range(w)])
+plt.title('Intensity profile')
+plt.show()
+
+plt.plot(range(w), [softmax(i) for i in y])
+plt.title('New intensity profile')
+plt.show()
+
+detection = [softmax(i) for i in y]
+
+fringes = []
+for i in range(len(detection)):
+    # saving start of anomaly with default end
+    if detection[i] > 128 and (i == 0 or detection[i-1] <= 128):
+        fringes.append([i, len(detection)-1])
+    # saving end of anomaly in last elmt
+    if detection[i] <= 128 and detection[i-1] > 128:
+        if(len(fringes)-1 >= 0):
+            fringes[len(fringes)-1][1] = i
+        
+fringes = [round((e[0]+e[1])/2) for e in fringes]      
+print(fringes)
+
+print('There are', len(fringes), 'sillons')
+
+ nb_lines = canny_direction(img, gray, threshold['down'], threshold['up'])
 
 print(time.time() - start_time, 'seconds')

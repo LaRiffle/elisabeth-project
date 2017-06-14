@@ -45,6 +45,7 @@ def get_canny_configuration(gray):
 
 def canny_direction(img, gray,threshold_down, threshold_up):
     edges = cv2.Canny(gray,threshold_down,threshold_up,apertureSize = 3)
+    print(edges)
     plt.imshow(edges)
     plt.title('Canny image')
     plt.show()
@@ -119,7 +120,9 @@ def crop_image(img, how='half'):
         # NOTE: its img[y: y + h, x: x + w] and *not* img[x: x + w, y: y + h]
         return crop_img
     
-        
+def softmax(x):
+    return 255/(1+math.exp(-(x-128)))
+    
 def part(title):
     print()
     print(title)
