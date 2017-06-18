@@ -9,14 +9,15 @@ Created on Sat May 13 14:20:58 2017
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import numpy.polynomial.polynomial as poly
 import time
 import math
 
 from utils import *
 
+
 #Should have shape > 600x600
-path = 'sillons_cadres/sillon14.png'
+path = 'sillons_cadres/sillon23.png'
+path = 'sillons_2/sillon20.jpg'
 
 start_time = time.time()
 
@@ -70,45 +71,39 @@ show_image(img, 'Croped image')
 h, w, _ = img.shape
 
 total_bright = [np.mean(img[:, i]) for i in range(w)]
-x = list(range(len(total_bright)))
-coefs = poly.polyfit(x, total_bright, 5)
-y_base = poly.polyval(x, coefs)
-plt.figure(1)
-plt.plot(x, total_bright, 'r--')
-plt.plot(x, y_base)
-plt.show()
 
-y = total_bright - y_base
-y = [i+128 for i in y]
-plt.figure(2)
-plt.plot(range(len(total_bright)), y, 'r--')
-plt.show()
+# Polyfit and exacerbate have the same role, but polyfit 
+# excels in detecting gap between songs et exarcerbate in detecting
+# small furrows
+detection = polyfit(total_bright)
+fringes = compute_fringes_from_profile(detection)
 
-plt.plot(range(w), [np.mean(img[:, i]) for i in range(w)])
-plt.title('Intensity profile')
-plt.show()
+## detection of gap betwen songs
+if has_change_of_song(fringes) is not False:
+    end_song, start_song = has_change_of_song(fringes)
+    print('gap detected', end_song, start_song, end_song - start_song)
+    print('END OF SONG')
+    detection1 = exacerbate(total_bright[:end_song])
+    fringes1 = compute_fringes_from_profile(detection1)
+    fringes1 = [round((e[0]+e[1])/2) for e in fringes1] 
+    print('START OF SONG')
+    detection2 = exacerbate(total_bright[start_song:])
+    fringes2 = compute_fringes_from_profile(detection2)
+    fringes2 = [round((e[0]+e[1])/2) for e in fringes2]
+    print('There are', len(fringes1), 'sillons in the last song')
+    print('There is a change of song')
+    print('There are', len(fringes2), 'sillons in the new song')
+    
+else:
+    detection = exacerbate(total_bright)
+    fringes = compute_fringes_from_profile(detection)
+    fringes = [round((e[0]+e[1])/2) for e in fringes]  
+    #fringes = remove_forks(fringes)    
+    print(fringes)
+    
+    
+    print('There are', len(fringes), 'sillons')
 
-plt.plot(range(w), [softmax(i) for i in y])
-plt.title('New intensity profile')
-plt.show()
-
-detection = [softmax(i) for i in y]
-
-fringes = []
-for i in range(len(detection)):
-    # saving start of anomaly with default end
-    if detection[i] > 128 and (i == 0 or detection[i-1] <= 128):
-        fringes.append([i, len(detection)-1])
-    # saving end of anomaly in last elmt
-    if detection[i] <= 128 and detection[i-1] > 128:
-        if(len(fringes)-1 >= 0):
-            fringes[len(fringes)-1][1] = i
-        
-fringes = [round((e[0]+e[1])/2) for e in fringes]      
-print(fringes)
-
-print('There are', len(fringes), 'sillons')
-
- nb_lines = canny_direction(img, gray, threshold['down'], threshold['up'])
+# nb_lines = canny_direction(img, gray, threshold['down'], threshold['up'])
 
 print(time.time() - start_time, 'seconds')

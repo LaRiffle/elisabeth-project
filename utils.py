@@ -6,8 +6,12 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import numpy.polynomial.polynomial as poly
 import time
 import math
+
+MIN_GAP_SONG = 30
+AVG_WIDTH_FURROW = 16
 
 
 def get_canny_configuration(gray):
@@ -84,6 +88,96 @@ def canny_direction(img, gray,threshold_down, threshold_up):
     my_std = np.std(direction)*180/np.pi
     print('Direction :', my_direction, '±', my_std)
     return my_direction, len(lines)
+    
+def polyfit(total_bright):
+    x = list(range(len(total_bright)))
+    coefs = poly.polyfit(x, total_bright, 5)
+    y_base = poly.polyval(x, coefs)
+    plt.figure(1)
+    plt.plot(x, total_bright, 'r--')
+    plt.plot(x, y_base)
+    plt.show()
+    
+    y = total_bright - y_base
+    y = [i+128 for i in y]
+    plt.figure(2)
+    plt.title('Intensity profile')
+    plt.plot(range(len(total_bright)), y)
+    plt.show()
+    
+    plt.plot(range(len(total_bright)), [softmax(i) for i in y])
+    plt.title('New intensity profile')
+    plt.show()
+    
+    detection = [softmax(i) for i in y]
+
+    return detection
+    
+def exacerbate(total_bright):
+    x = list(range(len(total_bright)))
+    
+    y_base = []
+    width = int(AVG_WIDTH_FURROW/2)
+    for i in range(len(total_bright)):
+        y_base.append(np.mean(total_bright[max(0, i-width):min(len(total_bright)-1, i+width)]))
+    
+    plt.figure(1)
+    plt.plot(x, total_bright, 'r--')
+    plt.plot(x, y_base)
+    plt.show()
+    
+    y = [tot - base for tot, base in zip(total_bright, y_base)]
+    y = [i+128 for i in y]
+    plt.figure(2)
+    plt.title('Intensity profile')
+    plt.plot(range(len(total_bright)), y)
+    plt.show()
+    
+    plt.plot(range(len(total_bright)), [softmax(i) for i in y])
+    plt.title('New intensity profile')
+    plt.show()
+    
+    detection = [softmax(i) for i in y]
+
+    return detection
+    
+def compute_fringes_from_profile(detection):
+    fringes = []
+    for i in range(len(detection)):
+        # saving start of anomaly with default end
+        if detection[i] > 128 and (i == 0 or detection[i-1] <= 128):
+            fringes.append([i, len(detection)-1])
+        # saving end of anomaly in last elmt
+        if detection[i] <= 128 and detection[i-1] > 128:
+            if(len(fringes)-1 >= 0):
+                fringes[len(fringes)-1][1] = i
+    return fringes
+    
+def has_change_of_song(fringes):
+    for fringe1, fringe2 in zip(fringes[:-1], fringes[1:]):
+        if fringe2[0] - fringe1[1] > MIN_GAP_SONG:
+            return (fringe1[1], fringe2[0])
+    return False
+    
+def remove_forks(fringes):
+    ecart = [fringes[i+1]-fringes[i] for i in range(len(fringes)-1)]
+    mean = np.mean(ecart)
+    forks = [ i  for i, e in enumerate(ecart) if e < 2*mean/3]
+    pos = fringes[0]
+    fringes = [fringes[0]]
+    for i, e in enumerate(ecart):
+        if i+1 in forks:
+            pos += (ecart[i] + int(ecart[i+1]/2))
+            fringes.append(pos)
+        elif i in forks:
+            pass
+        elif i-1 in forks:
+            pos += (ecart[i] + ecart[i-1] - int(ecart[i-1]/2))
+            fringes.append(pos)
+        else:
+            pos += ecart[i]
+            fringes.append(pos)
+    return fringes
     
 def load_image(path):
     return cv2.imread(path)
