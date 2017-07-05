@@ -98,18 +98,11 @@ def polyfit(total_bright):
     plt.figure(1)
     plt.plot(x, total_bright, 'r--')
     plt.plot(x, y_base)
+    plt.title('Polyfit')
     plt.show()
     
     y = total_bright - y_base
     y = [i+128 for i in y]
-    plt.figure(2)
-    plt.title('Intensity profile')
-    plt.plot(range(len(total_bright)), y)
-    plt.show()
-    
-    plt.plot(range(len(total_bright)), [softmax(i) for i in y])
-    plt.title('New intensity profile')
-    plt.show()
     
     detection = [softmax(i) for i in y]
 
@@ -124,6 +117,7 @@ def exacerbate(total_bright):
         y_base.append(np.mean(total_bright[max(0, i-width):min(len(total_bright)-1, i+width)]))
     
     plt.figure(1)
+    plt.title('Local means (exacerbate)')
     plt.plot(x, total_bright, 'r--')
     plt.plot(x, y_base)
     plt.show()
@@ -131,12 +125,12 @@ def exacerbate(total_bright):
     y = [tot - base for tot, base in zip(total_bright, y_base)]
     y = [i+128 for i in y]
     plt.figure(2)
-    plt.title('Intensity profile')
+    plt.title('Intensity profile (exacerbate)')
     plt.plot(range(len(total_bright)), y)
     plt.show()
     
     plt.plot(range(len(total_bright)), [softmax(i) for i in y])
-    plt.title('New intensity profile')
+    plt.title('New intensity profile (exacerbate)')
     plt.show()
     
     detection = [softmax(i) for i in y]
@@ -229,20 +223,56 @@ def compute_variance(total_bright):
     return np.var(total_bright)
     
 def find_rotation(img):
-    theta_range = np.arange(0, 180, 1)
+    steps = [1, 0.1]
+    theta_extremum = [0, 180] # you can reduce if you have a basic estimate
+    for step in steps:
+        theta_range = np.arange(theta_extremum[0], theta_extremum[1], step)
+        is_first = (step is steps[0])
+        best_theta = get_rotation_with_higher_variance(img, theta_range, step, is_first)
+        theta_extremum = [best_theta - 2*step, best_theta + 2*step]
+    print('Best', best_theta)
+    return best_theta
+    
+def get_rotation_with_higher_variance(img, theta_range, step, is_first):
+    """
+        Returns the theta for which a singularity has been detected
+    """
     var_range = []
     for theta in theta_range:
-        print(theta)
-        img2 = deepcopy(img)
-        img2 = rotate_image(img2, theta)
-        img2 = crop_image(img2, how=300)
-        h, w, _ = img2.shape
-        total_bright = [np.mean(img2[:, i]) for i in range(w)]
-        var_range.append(compute_variance(total_bright))
+        variance = compute_variance_of_rotated_img(img, theta)
+        var_range.append(variance)
+    # print(var_range)
     
-    print(theta_range)
-    print(var_range)
-    print(np.argmax(var_range))
-    print(theta_range[np.argmax(var_range)])
+    # Detect singularity which is not always the argmax
+    # Plot for more details
+    if is_first:
+        y_base = []
+        width = 5
+        for i in range(len(var_range)):
+            y_base.append(np.mean(var_range[max(0, i-width):min(len(var_range)-1, i+width)]))
+        
+        x = theta_range
+        plt.figure(1)
+        plt.title('Fitting the gobal shape')
+        plt.plot(x, var_range)
+        plt.plot(x, y_base, 'r--')
+        plt.show()
+        
+        var_range = [var - base for var, base in zip(var_range, y_base)]
+        # cut extremmities
+        for i, var in enumerate(var_range):
+            if i < width or i >= len(var_range) - width:
+                var_range[i] = 0
+
+    best_theta = theta_range[np.argmax(var_range)]
+    return best_theta
+    
+def compute_variance_of_rotated_img(img, theta):
+    img2 = deepcopy(img)
+    img2 = rotate_image(img2, theta)
+    img2 = crop_image(img2, how=300)
+    h, w, _ = img2.shape
+    total_bright = [np.mean(img2[:, i]) for i in range(w)]
+    return compute_variance(total_bright)
 
     
