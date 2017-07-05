@@ -55,15 +55,14 @@ theta_cor, nb_lines = canny_direction(img, gray, threshold['down'], threshold['u
 
 # III. Count sillons
 part(' III. Count sillons')
-
 img = load_image(path)
 
 theta = theta + theta_cor
 img = rotate_image(img, theta)
-show_image(img, 'Rotated image '+str(theta)+'°')
+#show_image(img, 'Rotated image '+str(theta)+'°')
 
 img = crop_image(img, how=300)
-show_image(img, 'Croped image')
+#show_image(img, 'Croped image')
 
 
 
@@ -81,7 +80,7 @@ fringes = compute_fringes_from_profile(detection)
 ## detection of gap betwen songs
 if has_change_of_song(fringes) is not False:
     end_song, start_song = has_change_of_song(fringes)
-    print('gap detected', end_song, start_song, end_song - start_song)
+    print('gap detected', end_song, start_song, start_song - end_song)
     print('END OF SONG')
     detection1 = exacerbate(total_bright[:end_song])
     fringes1 = compute_fringes_from_profile(detection1)

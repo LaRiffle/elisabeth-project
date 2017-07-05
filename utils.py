@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy.polynomial.polynomial as poly
 import time
 import math
+from copy import deepcopy
 
 MIN_GAP_SONG = 30
 AVG_WIDTH_FURROW = 16
@@ -19,30 +20,31 @@ def get_canny_configuration(gray):
     threshold = {'down':0, 'up':0}
     for down in np.arange(0, 241, 10):
         for width in np.arange(20, 221, 10):
-            threshold_down = down
-            threshold_up = min(down + width, 255)
-            edges = cv2.Canny(gray,threshold_down,threshold_up,apertureSize = 3)
-            lines = cv2.HoughLines(edges,1,np.pi/180,80)
-            if lines is None:
-                lines = []
-            lines = [list(e[0]) for e in lines]
-            direction = []
-            for rho,theta in lines:
-                theta = (theta + math.pi/2)%math.pi - math.pi/2
-                direction.append(theta)
-            my_direction = np.mean(direction)*180/np.pi
-            my_std = np.std(direction)*180/np.pi
-            if len(lines) < 3:
-                score = 0
-            else:
-                my_std = max(1, my_std)
-                score = min(len(lines), 50)/my_std
-            #if len(lines) < 1000 and len(lines) > 0:
-            #    print('conf', threshold_down, threshold_up, len(lines), 'lines', 'dir :', my_direction, '±', my_std, 'score', score)
-            if score > best_score:
-                best_score = score
-                threshold['down'] = threshold_down
-                threshold['up'] = threshold_up
+            if down + width <= 255:
+                threshold_down = down
+                threshold_up = min(down + width, 255)
+                edges = cv2.Canny(gray,threshold_down,threshold_up,apertureSize = 3)
+                lines = cv2.HoughLines(edges,1,np.pi/180,80)
+                if lines is None:
+                    lines = []
+                lines = [list(e[0]) for e in lines]
+                direction = []
+                for rho,theta in lines:
+                    theta = (theta + math.pi/2)%math.pi - math.pi/2
+                    direction.append(theta)
+                my_direction = np.mean(direction)*180/np.pi
+                my_std = np.std(direction)*180/np.pi
+                if len(lines) < 3:
+                    score = 0
+                else:
+                    my_std = max(1, my_std)
+                    score = min(len(lines), 50)/my_std
+                #if len(lines) < 1000 and len(lines) > 0:
+                #    print('conf', threshold_down, threshold_up, len(lines), 'lines', 'dir :', my_direction, '±', my_std, 'score', score)
+                if score > best_score:
+                    best_score = score
+                    threshold['down'] = threshold_down
+                    threshold['up'] = threshold_up
     print('Recommended', threshold, best_score)
     return threshold
             
@@ -221,4 +223,26 @@ def part(title):
     print()
     print(title)
     print()
+    
+# see if the image is correctly oriented : var max    
+def compute_variance(total_bright):
+    return np.var(total_bright)
+    
+def find_rotation(img):
+    theta_range = np.arange(0, 180, 1)
+    var_range = []
+    for theta in theta_range:
+        print(theta)
+        img2 = deepcopy(img)
+        img2 = rotate_image(img2, theta)
+        img2 = crop_image(img2, how=300)
+        h, w, _ = img2.shape
+        total_bright = [np.mean(img2[:, i]) for i in range(w)]
+        var_range.append(compute_variance(total_bright))
+    
+    print(theta_range)
+    print(var_range)
+    print(np.argmax(var_range))
+    print(theta_range[np.argmax(var_range)])
+
     
